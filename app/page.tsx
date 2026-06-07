@@ -103,7 +103,7 @@ export default function LandingPage() {
             <Link
               href="/dashboard"
               className="px-8 py-4 rounded-xl font-semibold text-white text-base transition-all animate-glow"
-              style={{ background: "var(--accent)" }}
+              style={{ background: "#6c63ff", display: "inline-block", WebkitTextFillColor: "white" }}
             >
               Créer mon lien de paiement →
             </Link>

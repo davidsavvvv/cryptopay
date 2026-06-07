@@ -2,267 +2,223 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { supabase, type Transaction } from "@/lib/supabase";
+import {
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+} from "recharts";
 
-interface MerchantSettings {
-  username: string;
-  wallet_address: string;
-  business_name: string;
+type Range = 7 | 14 | 30;
+
+function getLast(days: number) {
+  return Array.from({ length: days }, (_, i) => {
+    const d = new Date();
+    d.setDate(d.getDate() - (days - 1 - i));
+    return d.toISOString().slice(0, 10);
+  });
 }
-
-interface Transaction {
-  id: string;
-  date: string;
-  amount_eur: number;
-  amount_usdt: number;
-  fee_usdt: number;
-  status: "completed" | "pending" | "failed";
-  tx_hash: string;
-}
-
-const MOCK_TRANSACTIONS: Transaction[] = [
-  { id: "1", date: "2026-06-07 14:32", amount_eur: 120, amount_usdt: 118.8, fee_usdt: 1.2, status: "completed", tx_hash: "0xabc...123" },
-  { id: "2", date: "2026-06-07 11:05", amount_eur: 350, amount_usdt: 346.5, fee_usdt: 3.5, status: "completed", tx_hash: "0xdef...456" },
-  { id: "3", date: "2026-06-06 18:47", amount_eur: 75, amount_usdt: 74.25, fee_usdt: 0.75, status: "pending", tx_hash: "0xghi...789" },
-  { id: "4", date: "2026-06-06 09:12", amount_eur: 200, amount_usdt: 198, fee_usdt: 2, status: "completed", tx_hash: "0xjkl...012" },
-];
-
-const STATUS_STYLES: Record<Transaction["status"], { bg: string; color: string; label: string }> = {
-  completed: { bg: "rgba(34,197,94,0.1)", color: "#22c55e", label: "Confirmé" },
-  pending:   { bg: "rgba(251,191,36,0.1)", color: "#fbbf24", label: "En attente" },
-  failed:    { bg: "rgba(239,68,68,0.1)",  color: "#ef4444", label: "Échoué" },
-};
 
 export default function DashboardPage() {
-  const [settings, setSettings] = useState<MerchantSettings>({
-    username: "",
-    wallet_address: "",
-    business_name: "",
-  });
-  const [saved, setSaved] = useState(false);
-  const [copied, setCopied] = useState(false);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [businessName, setBusinessName] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [range, setRange] = useState<Range>(7);
 
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem("cryptopay_settings");
-      if (stored) setSettings(JSON.parse(stored));
-    } catch {}
+    async function load() {
+      const username = localStorage.getItem("cryptopay_username");
+      if (!username) { setLoading(false); return; }
+
+      const { data: merchant } = await supabase
+        .from("merchants")
+        .select("*")
+        .eq("username", username)
+        .single();
+      if (merchant) setBusinessName(merchant.business_name);
+
+      const since = new Date();
+      since.setDate(since.getDate() - 30);
+
+      const { data: txs } = await supabase
+        .from("transactions")
+        .select("*")
+        .eq("merchant_username", username)
+        .gte("created_at", since.toISOString())
+        .order("created_at", { ascending: false });
+      if (txs) setTransactions(txs);
+      setLoading(false);
+    }
+    load();
   }, []);
 
-  const paymentLink = settings.username
-    ? `http://localhost:3000/${settings.username}`
-    : null;
+  // Construire les données du graphique
+  const days = getLast(range);
+  const chartData = days.map((date) => {
+    const dayTxs = transactions.filter(
+      (t) => t.created_at?.slice(0, 10) === date && t.status === "completed"
+    );
+    const total = dayTxs.reduce((acc, t) => acc + Number(t.amount_eur), 0);
+    return {
+      date: new Date(date).toLocaleDateString("fr-FR", { day: "2-digit", month: "short" }),
+      volume: total,
+    };
+  });
 
-  function handleSave(e: React.FormEvent) {
-    e.preventDefault();
-    localStorage.setItem("cryptopay_settings", JSON.stringify(settings));
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2500);
-  }
-
-  function handleCopy() {
-    if (!paymentLink) return;
-    navigator.clipboard.writeText(paymentLink);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  }
-
-  const totalReceived = MOCK_TRANSACTIONS
-    .filter((t) => t.status === "completed")
-    .reduce((acc, t) => acc + t.amount_usdt, 0);
+  const totalPeriod = chartData.reduce((acc, d) => acc + d.volume, 0);
+  const totalUsdt   = transactions.filter((t) => t.status === "completed").reduce((acc, t) => acc + Number(t.amount_usdt), 0);
+  const recentTxs   = transactions.slice(0, 5);
 
   return (
-    <div className="min-h-screen" style={{ background: "var(--background)", color: "var(--foreground)" }}>
-      {/* Top bar */}
-      <header className="flex items-center justify-between px-6 py-4 border-b" style={{ borderColor: "var(--card-border)", background: "var(--card)" }}>
-        <Link href="/" className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold text-sm" style={{ background: "var(--accent)" }}>
-            CP
+    <div className="space-y-6">
+      {/* Bonjour */}
+      <div>
+        <h2 className="text-xl font-bold mb-0.5">
+          Bonjour{businessName ? `, ${businessName}` : ""} 👋
+        </h2>
+        <p className="text-sm" style={{ color: "var(--muted)" }}>
+          Voici un résumé de votre activité.
+        </p>
+      </div>
+
+      {/* Graphique principal */}
+      <div className="rounded-xl p-6" style={{ background: "var(--card)", border: "1px solid var(--card-border)" }}>
+        {/* Header graphique */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+          <div>
+            <p className="text-xs mb-1" style={{ color: "var(--muted)" }}>Volume brut sur la période</p>
+            <p className="text-3xl font-bold">
+              {loading ? "…" : `€ ${totalPeriod.toFixed(2)}`}
+            </p>
           </div>
-          <span className="font-semibold">CryptoPay</span>
-        </Link>
-        <div className="flex items-center gap-3">
-          <span className="w-2 h-2 rounded-full bg-green-400" />
-          <span className="text-sm" style={{ color: "var(--muted)" }}>Polygon Mainnet</span>
-        </div>
-      </header>
-
-      <main className="max-w-5xl mx-auto px-6 py-10 space-y-8">
-        {/* Stats row */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          {[
-            { label: "Total reçu", value: `${totalReceived.toFixed(2)} USDT`, sub: "transactions complétées" },
-            { label: "Transactions", value: MOCK_TRANSACTIONS.length.toString(), sub: "ce mois-ci" },
-            { label: "Frais reversés", value: `${(totalReceived * 0.01).toFixed(2)} USDT`, sub: "1% partenaire" },
-          ].map((stat) => (
-            <div
-              key={stat.label}
-              className="rounded-xl p-5"
-              style={{ background: "var(--card)", border: "1px solid var(--card-border)" }}
-            >
-              <p className="text-xs mb-2" style={{ color: "var(--muted)" }}>{stat.label}</p>
-              <p className="text-2xl font-bold">{stat.value}</p>
-              <p className="text-xs mt-1" style={{ color: "var(--muted)" }}>{stat.sub}</p>
-            </div>
-          ))}
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Settings form */}
-          <div className="rounded-xl p-6" style={{ background: "var(--card)", border: "1px solid var(--card-border)" }}>
-            <h2 className="font-semibold text-lg mb-5">Paramètres du compte</h2>
-            <form onSubmit={handleSave} className="space-y-4">
-              <div>
-                <label className="block text-xs mb-1.5 font-medium" style={{ color: "var(--muted)" }}>
-                  Nom de l&apos;entreprise
-                </label>
-                <input
-                  type="text"
-                  placeholder="ex: Boutique Luxe Paris"
-                  value={settings.business_name}
-                  onChange={(e) => setSettings({ ...settings, business_name: e.target.value })}
-                  className="w-full px-3 py-2.5 rounded-lg text-sm outline-none transition-all"
-                  style={{
-                    background: "var(--background)",
-                    border: "1px solid var(--card-border)",
-                    color: "var(--foreground)",
-                  }}
-                />
-              </div>
-              <div>
-                <label className="block text-xs mb-1.5 font-medium" style={{ color: "var(--muted)" }}>
-                  Nom d&apos;utilisateur (URL publique)
-                </label>
-                <div className="flex items-center rounded-lg overflow-hidden" style={{ border: "1px solid var(--card-border)", background: "var(--background)" }}>
-                  <span className="px-3 py-2.5 text-sm select-none" style={{ color: "var(--muted)", borderRight: "1px solid var(--card-border)" }}>
-                    localhost:3000/
-                  </span>
-                  <input
-                    type="text"
-                    placeholder="mon-username"
-                    value={settings.username}
-                    onChange={(e) =>
-                      setSettings({ ...settings, username: e.target.value.toLowerCase().replace(/\s+/g, "-") })
-                    }
-                    className="flex-1 px-3 py-2.5 text-sm outline-none"
-                    style={{ background: "transparent", color: "var(--foreground)" }}
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs mb-1.5 font-medium" style={{ color: "var(--muted)" }}>
-                  Adresse Wallet Polygon (USDT)
-                </label>
-                <input
-                  type="text"
-                  placeholder="0x..."
-                  value={settings.wallet_address}
-                  onChange={(e) => setSettings({ ...settings, wallet_address: e.target.value })}
-                  className="w-full px-3 py-2.5 rounded-lg text-sm font-mono outline-none"
-                  style={{
-                    background: "var(--background)",
-                    border: "1px solid var(--card-border)",
-                    color: "var(--foreground)",
-                  }}
-                />
-              </div>
+          {/* Sélecteur de période */}
+          <div className="flex items-center gap-1 p-1 rounded-lg" style={{ background: "var(--background)", border: "1px solid var(--card-border)" }}>
+            {([7, 14, 30] as Range[]).map((r) => (
               <button
-                type="submit"
-                className="w-full py-3 rounded-lg font-semibold text-sm text-white transition-all"
-                style={{ background: saved ? "#22c55e" : "var(--accent)" }}
+                key={r}
+                onClick={() => setRange(r)}
+                className="px-3 py-1.5 rounded-md text-xs font-medium transition-all"
+                style={{
+                  background: range === r ? "var(--accent)" : "transparent",
+                  color: range === r ? "white" : "var(--muted)",
+                }}
               >
-                {saved ? "✓ Sauvegardé !" : "Enregistrer les paramètres"}
+                {r} jours
               </button>
-            </form>
-          </div>
-
-          {/* Payment link */}
-          <div className="space-y-4">
-            <div className="rounded-xl p-6" style={{ background: "var(--card)", border: "1px solid var(--card-border)" }}>
-              <h2 className="font-semibold text-lg mb-2">Mon lien de paiement</h2>
-              <p className="text-sm mb-4" style={{ color: "var(--muted)" }}>
-                Partagez ce lien à vos clients pour recevoir des paiements.
-              </p>
-              {paymentLink ? (
-                <div className="space-y-3">
-                  <div
-                    className="flex items-center gap-2 px-3 py-3 rounded-lg"
-                    style={{ background: "var(--background)", border: "1px solid var(--card-border)" }}
-                  >
-                    <span className="flex-1 text-sm font-mono truncate" style={{ color: "var(--accent)" }}>
-                      {paymentLink}
-                    </span>
-                  </div>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={handleCopy}
-                      className="flex-1 py-2.5 rounded-lg text-sm font-medium transition-all"
-                      style={{
-                        background: copied ? "rgba(34,197,94,0.1)" : "var(--background)",
-                        border: "1px solid var(--card-border)",
-                        color: copied ? "#22c55e" : "var(--foreground)",
-                      }}
-                    >
-                      {copied ? "✓ Copié !" : "Copier le lien"}
-                    </button>
-                    <Link
-                      href={`/${settings.username}`}
-                      target="_blank"
-                      className="flex-1 py-2.5 rounded-lg text-sm font-medium text-center transition-all"
-                      style={{
-                        background: "var(--background)",
-                        border: "1px solid var(--card-border)",
-                        color: "var(--foreground)",
-                      }}
-                    >
-                      Aperçu →
-                    </Link>
-                  </div>
-                </div>
-              ) : (
-                <div
-                  className="flex flex-col items-center justify-center py-8 rounded-lg text-sm text-center"
-                  style={{ background: "var(--background)", border: "1px dashed var(--card-border)", color: "var(--muted)" }}
-                >
-                  <span className="text-2xl mb-2">🔗</span>
-                  Configurez un username pour générer votre lien
-                </div>
-              )}
-            </div>
-
-            {/* QR placeholder */}
-            <div
-              className="rounded-xl p-6 flex items-center gap-4"
-              style={{ background: "var(--card)", border: "1px solid var(--card-border)" }}
-            >
-              <div
-                className="w-16 h-16 rounded-lg flex items-center justify-center text-2xl flex-shrink-0"
-                style={{ background: "var(--background)", border: "1px solid var(--card-border)" }}
-              >
-                📱
-              </div>
-              <div>
-                <p className="font-medium text-sm mb-0.5">QR Code</p>
-                <p className="text-xs" style={{ color: "var(--muted)" }}>
-                  Générez un QR code pour vos points de vente physiques. Bientôt disponible.
-                </p>
-              </div>
-            </div>
+            ))}
           </div>
         </div>
 
-        {/* Transactions table */}
-        <div className="rounded-xl overflow-hidden" style={{ background: "var(--card)", border: "1px solid var(--card-border)" }}>
-          <div className="px-6 py-4 border-b flex items-center justify-between" style={{ borderColor: "var(--card-border)" }}>
-            <h2 className="font-semibold">Transactions récentes</h2>
-            <span className="text-xs px-2 py-1 rounded-full" style={{ background: "var(--background)", color: "var(--muted)" }}>
-              Données de démonstration
-            </span>
+        {/* Courbe */}
+        <div style={{ height: 220 }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={chartData} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
+              <defs>
+                <linearGradient id="colorVolume" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%"  stopColor="#6c63ff" stopOpacity={0.3} />
+                  <stop offset="95%" stopColor="#6c63ff" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+              <XAxis
+                dataKey="date"
+                tick={{ fontSize: 11, fill: "#8a94a8" }}
+                axisLine={false}
+                tickLine={false}
+              />
+              <YAxis
+                tick={{ fontSize: 11, fill: "#8a94a8" }}
+                axisLine={false}
+                tickLine={false}
+                tickFormatter={(v) => `€${v}`}
+              />
+              <Tooltip
+                contentStyle={{
+                  background: "#0e1422",
+                  border: "1px solid #1e2a42",
+                  borderRadius: "8px",
+                  fontSize: "12px",
+                  color: "#e8eaf0",
+                }}
+                formatter={(value: number) => [`€ ${value.toFixed(2)}`, "Volume"]}
+              />
+              <Area
+                type="monotone"
+                dataKey="volume"
+                stroke="#6c63ff"
+                strokeWidth={2}
+                fill="url(#colorVolume)"
+              />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      {/* Stats */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        {[
+          { label: "Total reçu (USDT)",  value: `${totalUsdt.toFixed(2)} USDT`, icon: "💰" },
+          { label: "Transactions",        value: transactions.length.toString(),  icon: "📊" },
+          { label: "Frais reversés",      value: `${(totalUsdt * 0.01).toFixed(2)} USDT`, icon: "⚡" },
+        ].map((stat) => (
+          <div key={stat.label} className="rounded-xl p-5" style={{ background: "var(--card)", border: "1px solid var(--card-border)" }}>
+            <div className="flex items-center gap-2 mb-2">
+              <span>{stat.icon}</span>
+              <p className="text-xs" style={{ color: "var(--muted)" }}>{stat.label}</p>
+            </div>
+            <p className="text-2xl font-bold">{loading ? "…" : stat.value}</p>
           </div>
+        ))}
+      </div>
+
+      {/* Raccourcis */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        {[
+          { href: "/dashboard/transactions", icon: "📊", label: "Voir les transactions" },
+          { href: "/dashboard/lien",         icon: "🔗", label: "Mes liens de paiement" },
+          { href: "/dashboard/parametres",   icon: "⚙️", label: "Paramètres du compte" },
+        ].map((item) => (
+          <Link
+            key={item.href}
+            href={item.href}
+            className="flex items-center gap-3 px-4 py-4 rounded-xl transition-all hover:-translate-y-0.5"
+            style={{ background: "var(--card)", border: "1px solid var(--card-border)" }}
+          >
+            <span className="text-xl">{item.icon}</span>
+            <span className="text-sm font-medium">{item.label}</span>
+            <span className="ml-auto" style={{ color: "var(--muted)" }}>→</span>
+          </Link>
+        ))}
+      </div>
+
+      {/* Dernières transactions */}
+      <div className="rounded-xl overflow-hidden" style={{ background: "var(--card)", border: "1px solid var(--card-border)" }}>
+        <div className="px-6 py-4 border-b flex items-center justify-between" style={{ borderColor: "var(--card-border)" }}>
+          <h2 className="font-semibold">Dernières transactions</h2>
+          <Link href="/dashboard/transactions" className="text-xs" style={{ color: "var(--accent)" }}>
+            Voir tout →
+          </Link>
+        </div>
+
+        {loading ? (
+          <div className="flex items-center justify-center py-12" style={{ color: "var(--muted)" }}>
+            Chargement…
+          </div>
+        ) : recentTxs.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-12 text-center" style={{ color: "var(--muted)" }}>
+            <span className="text-3xl mb-3">📭</span>
+            <p className="text-sm">Aucune transaction pour l&apos;instant.</p>
+          </div>
+        ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr style={{ borderBottom: "1px solid var(--card-border)" }}>
-                  {["Date", "Montant EUR", "Reçu USDT", "Frais", "Statut", "Tx Hash"].map((h) => (
+                  {["Date", "Montant EUR", "Reçu USDT", "Statut"].map((h) => (
                     <th key={h} className="px-6 py-3 text-left text-xs font-medium" style={{ color: "var(--muted)" }}>
                       {h}
                     </th>
@@ -270,35 +226,35 @@ export default function DashboardPage() {
                 </tr>
               </thead>
               <tbody>
-                {MOCK_TRANSACTIONS.map((tx, i) => {
-                  const s = STATUS_STYLES[tx.status];
+                {recentTxs.map((tx, i) => {
+                  const statusMap: Record<string, { bg: string; color: string; label: string }> = {
+                    completed: { bg: "rgba(34,197,94,0.1)",  color: "#22c55e", label: "Confirmé" },
+                    pending:   { bg: "rgba(251,191,36,0.1)", color: "#fbbf24", label: "En attente" },
+                    failed:    { bg: "rgba(239,68,68,0.1)",  color: "#ef4444", label: "Échoué" },
+                  };
+                  const s = statusMap[tx.status] ?? statusMap.pending;
                   return (
-                    <tr
-                      key={tx.id}
-                      style={{
-                        borderBottom: i < MOCK_TRANSACTIONS.length - 1 ? "1px solid var(--card-border)" : "none",
-                      }}
-                    >
-                      <td className="px-6 py-4 font-mono text-xs" style={{ color: "var(--muted)" }}>{tx.date}</td>
-                      <td className="px-6 py-4 font-semibold">€ {tx.amount_eur.toFixed(2)}</td>
-                      <td className="px-6 py-4 font-semibold" style={{ color: "var(--success)" }}>
-                        {tx.amount_usdt.toFixed(2)} USDT
+                    <tr key={tx.id} style={{ borderBottom: i < recentTxs.length - 1 ? "1px solid var(--card-border)" : "none" }}>
+                      <td className="px-6 py-4 font-mono text-xs" style={{ color: "var(--muted)" }}>
+                        {tx.created_at ? new Date(tx.created_at).toLocaleString("fr-FR") : "—"}
                       </td>
-                      <td className="px-6 py-4 text-xs" style={{ color: "var(--muted)" }}>{tx.fee_usdt.toFixed(2)} USDT</td>
+                      <td className="px-6 py-4 font-semibold">€ {Number(tx.amount_eur).toFixed(2)}</td>
+                      <td className="px-6 py-4 font-semibold" style={{ color: "#22c55e" }}>
+                        {Number(tx.amount_usdt).toFixed(2)} USDT
+                      </td>
                       <td className="px-6 py-4">
                         <span className="px-2 py-1 rounded-full text-xs font-medium" style={{ background: s.bg, color: s.color }}>
                           {s.label}
                         </span>
                       </td>
-                      <td className="px-6 py-4 font-mono text-xs" style={{ color: "var(--muted)" }}>{tx.tx_hash}</td>
                     </tr>
                   );
                 })}
               </tbody>
             </table>
           </div>
-        </div>
-      </main>
+        )}
+      </div>
     </div>
   );
 }

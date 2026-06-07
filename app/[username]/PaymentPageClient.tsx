@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { supabase } from "@/lib/supabase";
 
 interface MerchantSettings {
   username: string;
@@ -200,19 +201,65 @@ function PaymentModal({
   );
 }
 
+interface PaymentLink {
+  id: string;
+  label: string;
+  slug: string;
+  amount?: number;
+  type: "libre" | "fixe";
+}
+
 export default function PaymentPageClient({ username }: { username: string }) {
   const [merchant, setMerchant] = useState<MerchantSettings | null>(null);
   const [amount, setAmount] = useState("");
+  const [fixedAmount, setFixedAmount] = useState<number | null>(null);
+  const [linkLabel, setLinkLabel] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
 
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem("cryptopay_settings");
-      if (stored) {
-        const data: MerchantSettings = JSON.parse(stored);
-        if (data.username === username) setMerchant(data);
+    // Chercher le marchand dont le username principal correspond
+    // OU dont un lien a ce slug
+    async function load() {
+      // 1. Chercher dans tous les marchands leurs liens stockés
+      // On cherche d'abord si c'est le username direct
+      const { data: merchantDirect } = await supabase
+        .from("merchants")
+        .select("*")
+        .eq("username", username)
+        .single();
+
+      if (merchantDirect) {
+        setMerchant(merchantDirect);
+        return;
       }
-    } catch {}
+
+      // 2. Sinon c'est un slug de lien — chercher dans localStorage
+      // Le slug est de la forme "username-nom-id"
+      // On extrait le username (première partie avant le premier tiret suivi d'un mot)
+      const allKeys = Object.keys(localStorage).filter((k) => k.startsWith("cryptopay_links_"));
+      for (const key of allKeys) {
+        const links: PaymentLink[] = JSON.parse(localStorage.getItem(key) || "[]");
+        const found = links.find((l) => l.slug === username);
+        if (found) {
+          const merchantUsername = key.replace("cryptopay_links_", "");
+          const { data: m } = await supabase
+            .from("merchants")
+            .select("*")
+            .eq("username", merchantUsername)
+            .single();
+          if (m) {
+            setMerchant(m);
+            if (found.type === "fixe" && found.amount) {
+              setFixedAmount(found.amount);
+              setAmount(found.amount.toString());
+            }
+            setLinkLabel(found.label);
+          }
+          return;
+        }
+      }
+    }
+    load();
   }, [username]);
 
   const numAmount = parseFloat(amount) || 0;
@@ -264,28 +311,49 @@ export default function PaymentPageClient({ username }: { username: string }) {
             className="rounded-2xl p-6"
             style={{ background: "var(--card)", border: "1px solid var(--card-border)" }}
           >
+            {linkLabel && (
+              <p className="text-xs font-medium mb-3 px-2 py-1 rounded-full inline-block" style={{ background: "rgba(108,99,255,0.15)", color: "var(--accent)" }}>
+                {linkLabel}
+              </p>
+            )}
+
             <label className="block text-xs font-medium mb-3" style={{ color: "var(--muted)" }}>
               Montant à payer
             </label>
-            <div
-              className="flex items-center gap-2 px-4 py-3 rounded-xl mb-4"
-              style={{ background: "var(--background)", border: "1px solid var(--card-border)" }}
-            >
-              <span className="text-xl font-bold" style={{ color: "var(--muted)" }}>€</span>
-              <input
-                type="number"
-                min="1"
-                step="0.01"
-                placeholder="0.00"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                className="flex-1 text-2xl font-bold outline-none"
-                style={{ background: "transparent", color: "var(--foreground)" }}
-              />
-              <span className="text-sm font-medium px-2 py-1 rounded-lg" style={{ background: "var(--card)", color: "var(--muted)" }}>
-                EUR
-              </span>
-            </div>
+
+            {/* Montant fixe — non modifiable */}
+            {fixedAmount ? (
+              <div
+                className="flex items-center gap-2 px-4 py-4 rounded-xl mb-4"
+                style={{ background: "var(--background)", border: "1px solid var(--card-border)" }}
+              >
+                <span className="text-xl font-bold" style={{ color: "var(--muted)" }}>€</span>
+                <span className="flex-1 text-3xl font-bold">{fixedAmount.toFixed(2)}</span>
+                <span className="text-sm font-medium px-2 py-1 rounded-lg" style={{ background: "var(--card)", color: "var(--muted)" }}>
+                  EUR
+                </span>
+              </div>
+            ) : (
+              <div
+                className="flex items-center gap-2 px-4 py-3 rounded-xl mb-4"
+                style={{ background: "var(--background)", border: "1px solid var(--card-border)" }}
+              >
+                <span className="text-xl font-bold" style={{ color: "var(--muted)" }}>€</span>
+                <input
+                  type="number"
+                  min="1"
+                  step="0.01"
+                  placeholder="0.00"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  className="flex-1 text-2xl font-bold outline-none"
+                  style={{ background: "transparent", color: "var(--foreground)" }}
+                />
+                <span className="text-sm font-medium px-2 py-1 rounded-lg" style={{ background: "var(--card)", color: "var(--muted)" }}>
+                  EUR
+                </span>
+              </div>
+            )}
 
             {numAmount > 0 && (
               <div className="space-y-1.5 mb-5 text-sm" style={{ color: "var(--muted)" }}>
@@ -297,33 +365,28 @@ export default function PaymentPageClient({ username }: { username: string }) {
                   <span>Frais (1%)</span>
                   <span>{fee.toFixed(2)} USDT</span>
                 </div>
-                <div
-                  className="flex justify-between font-semibold pt-1 border-t"
-                  style={{ borderColor: "var(--card-border)", color: "var(--foreground)" }}
-                >
-                  <span>Marchand reçoit</span>
-                  <span style={{ color: "var(--success)" }}>{netUsdt.toFixed(2)} USDT</span>
-                </div>
               </div>
             )}
 
-            {/* Presets */}
-            <div className="flex gap-2 mb-4">
-              {[20, 50, 100, 200].map((preset) => (
-                <button
-                  key={preset}
-                  onClick={() => setAmount(preset.toString())}
-                  className="flex-1 py-1.5 rounded-lg text-xs font-medium transition-all"
-                  style={{
-                    background: numAmount === preset ? "var(--accent)" : "var(--background)",
-                    border: "1px solid var(--card-border)",
-                    color: numAmount === preset ? "white" : "var(--muted)",
-                  }}
-                >
-                  €{preset}
-                </button>
-              ))}
-            </div>
+            {/* Presets — uniquement si montant libre */}
+            {!fixedAmount && (
+              <div className="flex gap-2 mb-4">
+                {[20, 50, 100, 200].map((preset) => (
+                  <button
+                    key={preset}
+                    onClick={() => setAmount(preset.toString())}
+                    className="flex-1 py-1.5 rounded-lg text-xs font-medium transition-all"
+                    style={{
+                      background: numAmount === preset ? "var(--accent)" : "var(--background)",
+                      border: "1px solid var(--card-border)",
+                      color: numAmount === preset ? "white" : "var(--muted)",
+                    }}
+                  >
+                    €{preset}
+                  </button>
+                ))}
+              </div>
+            )}
 
             <button
               disabled={numAmount < 1}
