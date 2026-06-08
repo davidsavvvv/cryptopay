@@ -199,7 +199,7 @@ export default function DashboardPage() {
               <YAxis tick={{ fontSize: 11, fill: "#71717a" }} axisLine={false} tickLine={false} tickFormatter={(v) => `€${v}`} />
               <Tooltip
                 contentStyle={{ background: "var(--card)", border: "1px solid var(--card-border)", borderRadius: "10px", fontSize: "12px" }}
-                formatter={(v: number) => [`€ ${v.toFixed(2)}`, "Volume"]}
+                formatter={(v: unknown) => [`€ ${Number(v).toFixed(2)}`, "Volume"]}
                 cursor={{ stroke: "rgba(108,99,255,0.3)", strokeWidth: 1 }}
               />
               <Area type="monotone" dataKey="volume" stroke="#6c63ff" strokeWidth={2} fill="url(#grad)" dot={false} activeDot={{ r: 4, fill: "#6c63ff", strokeWidth: 0 }} />
