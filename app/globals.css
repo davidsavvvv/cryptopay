@@ -1,14 +1,15 @@
 @import "tailwindcss";
 
 :root {
-  --background: #080b14;
-  --foreground: #e8eaf0;
-  --card: #0e1422;
-  --card-border: #1e2a42;
+  --background: #09090b;
+  --foreground: #fafafa;
+  --card: #111113;
+  --card-border: #27272a;
   --accent: #6c63ff;
   --accent-hover: #574fd6;
   --accent-glow: rgba(108, 99, 255, 0.25);
-  --muted: #8a94a8;
+  --muted: #71717a;
+  --muted-light: #a1a1aa;
   --success: #22c55e;
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
@@ -31,33 +32,169 @@
   box-sizing: border-box;
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-geist-sans), system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
 }
 
+/* ── Fade in up ─────────────────────────────────── */
 @keyframes fade-in-up {
-  from {
-    opacity: 0;
-    transform: translateY(24px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  from { opacity: 0; transform: translateY(32px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-in-up {
+  animation: fade-in-up 0.7s cubic-bezier(0.16,1,0.3,1) both;
 }
 
+/* ── Scroll reveal (JS-driven) ──────────────────── */
+.reveal {
+  opacity: 0;
+  transform: translateY(40px);
+  transition: opacity 0.7s cubic-bezier(0.16,1,0.3,1),
+              transform 0.7s cubic-bezier(0.16,1,0.3,1);
+}
+.reveal.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+.reveal-delay-1 { transition-delay: 0.1s; }
+.reveal-delay-2 { transition-delay: 0.2s; }
+.reveal-delay-3 { transition-delay: 0.3s; }
+.reveal-delay-4 { transition-delay: 0.4s; }
+
+/* ── Glow pulse on CTA ──────────────────────────── */
 @keyframes glow-pulse {
   0%, 100% { box-shadow: 0 0 24px var(--accent-glow); }
-  50% { box-shadow: 0 0 48px var(--accent-glow), 0 0 80px var(--accent-glow); }
+  50%       { box-shadow: 0 0 56px var(--accent-glow), 0 0 100px var(--accent-glow); }
+}
+.animate-glow { animation: glow-pulse 3s ease-in-out infinite; }
+
+/* ── Infinite logo carousel ─────────────────────── */
+@keyframes scroll-left {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+.carousel-track {
+  display: flex;
+  width: max-content;
+  animation: scroll-left 28s linear infinite;
+}
+.carousel-track:hover { animation-play-state: paused; }
+
+/* ── Rotating text clip ─────────────────────────── */
+@keyframes word-in {
+  from { opacity: 0; transform: translateY(100%); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes word-out {
+  from { opacity: 1; transform: translateY(0); }
+  to   { opacity: 0; transform: translateY(-100%); }
+}
+.word-enter { animation: word-in 0.45s cubic-bezier(0.16,1,0.3,1) both; }
+.word-exit  { animation: word-out 0.35s cubic-bezier(0.7,0,0.84,0) both; }
+
+/* ── Stat counter shimmer ───────────────────────── */
+@keyframes count-up {
+  from { opacity: 0; transform: scale(0.85); }
+  to   { opacity: 1; transform: scale(1); }
+}
+.stat-enter { animation: count-up 0.6s cubic-bezier(0.16,1,0.3,1) both; }
+
+/* ── Noise texture overlay ──────────────────────── */
+.noise::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+  opacity: 0.03;
+  pointer-events: none;
+  z-index: 0;
 }
 
-.animate-fade-in-up {
-  animation: fade-in-up 0.6s ease-out both;
+/* ── Card hover lift ────────────────────────────── */
+.card-hover {
+  transition: transform 0.3s cubic-bezier(0.16,1,0.3,1),
+              border-color 0.3s ease,
+              box-shadow 0.3s ease;
+}
+.card-hover:hover {
+  transform: translateY(-6px);
+  border-color: #3f3f46;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.4);
 }
 
-.animate-glow {
-  animation: glow-pulse 3s ease-in-out infinite;
+/* ── Magnetic button ────────────────────────────── */
+.btn-primary {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 28px;
+  background: var(--foreground);
+  color: var(--background);
+  font-weight: 600;
+  border-radius: 100px;
+  transition: background 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+  overflow: hidden;
 }
+.btn-primary::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(255,255,255,0.1);
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.btn-primary:hover::after { opacity: 1; }
+.btn-primary:hover { transform: scale(1.02); box-shadow: 0 8px 32px rgba(0,0,0,0.3); }
+
+.btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 28px;
+  border: 1px solid var(--card-border);
+  color: var(--foreground);
+  font-weight: 500;
+  border-radius: 100px;
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+.btn-secondary:hover { border-color: #52525b; background: rgba(255,255,255,0.03); }
+
+/* ── Tag badge ──────────────────────────────────── */
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 100px;
+  font-size: 12px;
+  font-weight: 500;
+  border: 1px solid var(--card-border);
+  color: var(--muted-light);
+  background: rgba(255,255,255,0.03);
+}
+
+/* ── Step connector line ────────────────────────── */
+.step-line {
+  position: absolute;
+  top: 20px;
+  left: calc(50% + 20px);
+  right: calc(-50% + 20px);
+  height: 1px;
+  background: linear-gradient(90deg, var(--card-border) 0%, transparent 100%);
+}
+
+/* ── Testimonial fade ───────────────────────────── */
+@keyframes testimonial-in {
+  from { opacity: 0; transform: translateX(20px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+.testimonial-enter { animation: testimonial-in 0.5s cubic-bezier(0.16,1,0.3,1) both; }
