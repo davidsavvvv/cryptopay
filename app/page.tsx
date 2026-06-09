@@ -3,6 +3,85 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
+// ── Galaxy background ─────────────────────────────────────────────────────────
+function GalaxyCanvas() {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    let w = canvas.width = window.innerWidth;
+    let h = canvas.height = window.innerHeight;
+
+    const onResize = () => {
+      w = canvas.width = window.innerWidth;
+      h = canvas.height = window.innerHeight;
+    };
+    window.addEventListener("resize", onResize);
+
+    // Étoiles
+    const stars = Array.from({ length: 220 }, () => ({
+      x: Math.random() * w,
+      y: Math.random() * h,
+      r: Math.random() * 1.4 + 0.2,
+      speed: Math.random() * 0.15 + 0.03,
+      opacity: Math.random() * 0.7 + 0.2,
+      twinkle: Math.random() * Math.PI * 2,
+    }));
+
+    let frame = 0;
+    let raf: number;
+
+    function draw() {
+      if (!ctx || !canvas) return;
+      ctx.clearRect(0, 0, w, h);
+
+      // Fond galaxy
+      const grad = ctx.createRadialGradient(w * 0.5, h * 0.4, 0, w * 0.5, h * 0.4, Math.max(w, h) * 0.75);
+      grad.addColorStop(0, "rgba(60,20,120,0.45)");
+      grad.addColorStop(0.4, "rgba(20,10,60,0.35)");
+      grad.addColorStop(1, "rgba(0,0,0,0)");
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, w, h);
+
+      // Nébuleuse secondaire
+      const grad2 = ctx.createRadialGradient(w * 0.2, h * 0.6, 0, w * 0.2, h * 0.6, w * 0.5);
+      grad2.addColorStop(0, "rgba(108,99,255,0.12)");
+      grad2.addColorStop(1, "rgba(0,0,0,0)");
+      ctx.fillStyle = grad2;
+      ctx.fillRect(0, 0, w, h);
+
+      // Étoiles
+      frame++;
+      stars.forEach((s) => {
+        s.y -= s.speed;
+        if (s.y < -2) { s.y = h + 2; s.x = Math.random() * w; }
+        s.twinkle += 0.02;
+        const alpha = s.opacity * (0.7 + 0.3 * Math.sin(s.twinkle));
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(255,255,255,${alpha})`;
+        ctx.fill();
+      });
+
+      raf = requestAnimationFrame(draw);
+    }
+
+    draw();
+    return () => { cancelAnimationFrame(raf); window.removeEventListener("resize", onResize); };
+  }, []);
+
+  return (
+    <canvas
+      ref={canvasRef}
+      style={{ position: "fixed", inset: 0, zIndex: 0, pointerEvents: "none" }}
+    />
+  );
+}
+
 // ── Scroll reveal hook ────────────────────────────────────────────────────────
 function useReveal() {
   const ref = useRef<HTMLDivElement>(null);
@@ -87,14 +166,6 @@ function Nav() {
 function Hero() {
   return (
     <section className="relative min-h-screen flex flex-col items-center justify-center text-center px-6 overflow-hidden">
-      {/* Grid */}
-      <div className="absolute inset-0 pointer-events-none" style={{
-        backgroundImage: "linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px)",
-        backgroundSize: "64px 64px",
-      }} />
-      {/* Glow */}
-      <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[600px] rounded-full pointer-events-none"
-        style={{ background: "radial-gradient(ellipse, rgba(108,99,255,0.09) 0%, transparent 70%)" }} />
 
       <div className="relative z-10 max-w-4xl">
         {/* Badge */}
@@ -568,6 +639,7 @@ function Footer() {
 export default function LandingPage() {
   return (
     <>
+      <GalaxyCanvas />
       <Nav />
       <Hero />
       <Stats />

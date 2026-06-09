@@ -578,7 +578,7 @@ export default function LienPage() {
           <span style={{ color: "var(--card-border)" }}>/</span>
           <span className="font-semibold">{view === "edit" ? editing?.label : "Nouveau lien"}</span>
         </div>
-        {merchant && (
+        {merchant ? (
           <div className="flex-1 min-h-0">
             <LinkEditor
               initial={view === "edit" ? editing : undefined}
@@ -587,6 +587,10 @@ export default function LienPage() {
               onSave={handleSave}
               onCancel={() => { setView("list"); setEditingId(null); }}
             />
+          </div>
+        ) : (
+          <div className="flex items-center justify-center flex-1" style={{ color: "var(--muted)" }}>
+            Chargement…
           </div>
         )}
       </div>
