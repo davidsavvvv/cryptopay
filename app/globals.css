@@ -100,6 +100,18 @@ body {
 .word-enter { animation: word-in 0.45s cubic-bezier(0.16,1,0.3,1) both; }
 .word-exit  { animation: word-out 0.35s cubic-bezier(0.7,0,0.84,0) both; }
 
+/* ── Wallet marquee ─────────────────────────────── */
+@keyframes marquee {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+@keyframes marquee-reverse {
+  from { transform: translateX(-50%); }
+  to   { transform: translateX(0); }
+}
+.animate-marquee         { animation: marquee 30s linear infinite; }
+.animate-marquee-reverse { animation: marquee-reverse 30s linear infinite; }
+
 /* ── Stat counter shimmer ───────────────────────── */
 @keyframes count-up {
   from { opacity: 0; transform: scale(0.85); }

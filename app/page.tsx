@@ -542,6 +542,101 @@ function Testimonials() {
   );
 }
 
+// ── Wallets ───────────────────────────────────────────────────────────────────
+
+const WALLETS = [
+  { name: "MetaMask",    color: "#E2761B", bg: "#FFF3E0", logo: "https://upload.wikimedia.org/wikipedia/commons/3/36/MetaMask_Fox.svg" },
+  { name: "Phantom",     color: "#9945FF", bg: "#F3E8FF", logo: "https://187760183-files.gitbook.io/~/files/v0/b/gitbook-x-prod.appspot.com/o/spaces%2F-MVOiF6Zqit57erLfCUS%2Fuploads%2FHEJvPkbEBHNMFTkOoGzp%2FPhantom_SVG_Icon.svg?alt=media&token=71c3b2bd-9e8e-4460-8674-f09e77b26c5b" },
+  { name: "Coinbase",    color: "#0052FF", bg: "#E8F0FF", logo: "https://upload.wikimedia.org/wikipedia/commons/1/1a/24px-Coinbase.svg.png" },
+  { name: "Binance",     color: "#F0B90B", bg: "#FFFBE6", logo: "https://upload.wikimedia.org/wikipedia/commons/e/ef/Binance_Logo.svg" },
+  { name: "Kraken",      color: "#5741D9", bg: "#EDE9FF", logo: "https://upload.wikimedia.org/wikipedia/commons/3/36/Kraken_logo.svg" },
+  { name: "Trust Wallet",color: "#3375BB", bg: "#E8F2FF", logo: "https://trustwallet.com/assets/images/media/assets/TWT.png" },
+  { name: "Ledger",      color: "#000000", bg: "#F0F0F0", logo: "https://upload.wikimedia.org/wikipedia/commons/7/76/Ledger_logo.svg" },
+  { name: "Rainbow",     color: "#FF6B6B", bg: "#FFF0F0", logo: "https://rainbowkit.com/rainbow.svg" },
+];
+
+function Wallets() {
+  return (
+    <section className="py-20 px-6 relative z-10">
+      <Reveal>
+        <div className="max-w-4xl mx-auto text-center mb-12">
+          <p className="text-xs font-semibold tracking-widest uppercase mb-3" style={{ color: "var(--accent)" }}>
+            Compatible avec
+          </p>
+          <h2 className="text-3xl md:text-4xl font-bold tracking-tight mb-4">
+            Tous les wallets populaires
+          </h2>
+          <p className="text-sm" style={{ color: "var(--muted)" }}>
+            Vos clients reçoivent leurs USDT directement dans le wallet de leur choix.
+          </p>
+        </div>
+      </Reveal>
+
+      <Reveal delay={100}>
+        <div className="max-w-5xl mx-auto">
+          {/* Marquee row 1 */}
+          <div className="overflow-hidden mb-4">
+            <div className="flex gap-4 animate-marquee" style={{ width: "max-content" }}>
+              {[...WALLETS, ...WALLETS].map((w, i) => (
+                <div
+                  key={i}
+                  className="flex items-center gap-3 px-5 py-3 rounded-2xl flex-shrink-0"
+                  style={{
+                    background: "var(--card)",
+                    border: "1px solid var(--card-border)",
+                    minWidth: 160,
+                  }}
+                >
+                  <img
+                    src={w.logo}
+                    alt={w.name}
+                    width={28}
+                    height={28}
+                    style={{ objectFit: "contain", borderRadius: 6 }}
+                    onError={(e) => {
+                      e.currentTarget.style.display = "none";
+                    }}
+                  />
+                  <span className="text-sm font-semibold whitespace-nowrap">{w.name}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Marquee row 2 (inverse) */}
+          <div className="overflow-hidden">
+            <div className="flex gap-4 animate-marquee-reverse" style={{ width: "max-content" }}>
+              {[...WALLETS.slice().reverse(), ...WALLETS.slice().reverse()].map((w, i) => (
+                <div
+                  key={i}
+                  className="flex items-center gap-3 px-5 py-3 rounded-2xl flex-shrink-0"
+                  style={{
+                    background: "var(--card)",
+                    border: "1px solid var(--card-border)",
+                    minWidth: 160,
+                  }}
+                >
+                  <img
+                    src={w.logo}
+                    alt={w.name}
+                    width={28}
+                    height={28}
+                    style={{ objectFit: "contain", borderRadius: 6 }}
+                    onError={(e) => {
+                      e.currentTarget.style.display = "none";
+                    }}
+                  />
+                  <span className="text-sm font-semibold whitespace-nowrap">{w.name}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </Reveal>
+    </section>
+  );
+}
+
 // ── CTA ───────────────────────────────────────────────────────────────────────
 function CTA() {
   return (
@@ -645,6 +740,7 @@ export default function LandingPage() {
       <Stats />
       <Features />
       <Process />
+      <Wallets />
       <Testimonials />
       <CTA />
       <Footer />
