@@ -262,9 +262,19 @@ export default function PaymentPageClient({ username }: { username: string }) {
         setAmount(String(linkRow.amount));
       }
 
-      // 3. Aperçu stocké dans la ligne
+      // 3. Aperçu : depuis la ligne, sinon premier aperçu du marchand
       if (linkRow.apercu_config) {
         setCfg(linkRow.apercu_config as unknown as PreviewConfig);
+      } else {
+        const { data: previews } = await supabase
+          .from("payment_previews")
+          .select("config")
+          .eq("merchant_username", linkRow.merchant_username)
+          .order("created_at", { ascending: true })
+          .limit(1);
+        if (previews?.[0]) {
+          setCfg(previews[0].config as unknown as PreviewConfig);
+        }
       }
     }
     load();
@@ -282,7 +292,7 @@ export default function PaymentPageClient({ username }: { username: string }) {
       ? `linear-gradient(135deg, ${cfg.cardBg} 0%, ${cfg.accent}22 100%)`
       : cfg.cardBg;
 
-  const displayName = cfg.businessName || merchant?.business_name || username;
+  const displayName = merchant?.business_name || cfg.businessName || username;
 
   return (
     <div
