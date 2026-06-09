@@ -162,6 +162,20 @@ function Nav() {
   );
 }
 
+// ── Hero wallets ──────────────────────────────────────────────────────────────
+const HERO_WALLETS = [
+  { name: "MetaMask",     color: "#E2761B", icon: "🦊" },
+  { name: "Phantom",      color: "#9945FF", icon: "👻" },
+  { name: "Coinbase",     color: "#0052FF", icon: "🔵" },
+  { name: "Binance",      color: "#F0B90B", icon: "🟡" },
+  { name: "Kraken",       color: "#5741D9", icon: "🐙" },
+  { name: "Trust Wallet", color: "#3375BB", icon: "🛡" },
+  { name: "Ledger",       color: "#000000", icon: "⬛" },
+  { name: "Rainbow",      color: "#FF6B6B", icon: "🌈" },
+  { name: "Exodus",       color: "#8B5CF6", icon: "⚡" },
+  { name: "OKX",          color: "#000000", icon: "⭕" },
+];
+
 // ── Hero ──────────────────────────────────────────────────────────────────────
 function Hero() {
   return (
@@ -232,40 +246,38 @@ function Hero() {
         </p>
       </div>
 
-      {/* Mock card */}
-      <div
-        className="relative z-10 mt-16 w-full max-w-xs text-left rounded-2xl p-5 animate-fade-in-up"
-        style={{
-          background: "var(--card)",
-          border: "1px solid var(--card-border)",
-          boxShadow: "0 40px 80px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.04)",
-          animationDelay: "360ms",
-        }}
-      >
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <p className="text-[11px] mb-0.5" style={{ color: "var(--muted)" }}>Paiement vers</p>
-            <p className="text-sm font-semibold">Boutique Luxe Paris</p>
+      {/* Wallets marquee inline dans le Hero */}
+      <div className="relative z-10 mt-16 w-full max-w-2xl animate-fade-in-up overflow-hidden" style={{ animationDelay: "360ms" }}>
+        <p className="text-xs text-center mb-4 font-medium tracking-widest uppercase" style={{ color: "var(--muted)" }}>
+          Compatible avec tous les wallets
+        </p>
+        <div className="overflow-hidden mb-3">
+          <div className="flex gap-3 animate-marquee" style={{ width: "max-content" }}>
+            {[...HERO_WALLETS, ...HERO_WALLETS].map((w, i) => (
+              <div key={i} className="flex items-center gap-2.5 px-4 py-2.5 rounded-xl flex-shrink-0"
+                style={{ background: "var(--card)", border: "1px solid var(--card-border)" }}>
+                <div className="w-6 h-6 rounded-lg flex items-center justify-center text-white text-xs font-bold flex-shrink-0"
+                  style={{ background: w.color }}>
+                  {w.icon}
+                </div>
+                <span className="text-sm font-medium whitespace-nowrap">{w.name}</span>
+              </div>
+            ))}
           </div>
-          <span
-            className="text-[11px] px-2 py-1 rounded-full"
-            style={{ background: "rgba(34,197,94,0.08)", color: "#22c55e", border: "1px solid rgba(34,197,94,0.15)" }}
-          >
-            ✓ Sécurisé
-          </span>
         </div>
-        <p className="text-3xl font-bold tracking-tight mb-0.5">€ 249.00</p>
-        <p className="text-xs mb-5" style={{ color: "var(--muted)" }}>≈ 249.00 USDT sur Polygon</p>
-        <div
-          className="w-full py-3 rounded-xl text-center font-semibold text-sm"
-          style={{ background: "var(--foreground)", color: "var(--background)" }}
-        >
-          Payer par Carte Bancaire →
-        </div>
-        <div className="flex items-center justify-center gap-3 mt-3">
-          {["Visa", "Mastercard", "3DS"].map(b => (
-            <span key={b} className="text-[11px]" style={{ color: "var(--muted)" }}>{b}</span>
-          ))}
+        <div className="overflow-hidden">
+          <div className="flex gap-3 animate-marquee-reverse" style={{ width: "max-content" }}>
+            {[...HERO_WALLETS.slice().reverse(), ...HERO_WALLETS.slice().reverse()].map((w, i) => (
+              <div key={i} className="flex items-center gap-2.5 px-4 py-2.5 rounded-xl flex-shrink-0"
+                style={{ background: "var(--card)", border: "1px solid var(--card-border)" }}>
+                <div className="w-6 h-6 rounded-lg flex items-center justify-center text-white text-xs font-bold flex-shrink-0"
+                  style={{ background: w.color }}>
+                  {w.icon}
+                </div>
+                <span className="text-sm font-medium whitespace-nowrap">{w.name}</span>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
 
