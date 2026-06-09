@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { supabase, type Transaction } from "@/lib/supabase";
+import { type Transaction } from "@/lib/supabase";
+import { createSupabaseBrowser } from "@/lib/supabase-browser";
 
 const STATUS_STYLES: Record<string, { bg: string; color: string; label: string }> = {
   completed: { bg: "rgba(34,197,94,0.1)",  color: "#22c55e", label: "Confirmé" },
@@ -15,12 +16,15 @@ export default function TransactionsPage() {
 
   useEffect(() => {
     async function load() {
-      const username = localStorage.getItem("cryptopay_username");
-      if (!username) { setLoading(false); return; }
+      const supabase = createSupabaseBrowser();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { setLoading(false); return; }
+      const { data: merchant } = await supabase.from("merchants").select("username").eq("user_id", user.id).single();
+      if (!merchant) { setLoading(false); return; }
       const { data } = await supabase
         .from("transactions")
         .select("*")
-        .eq("merchant_username", username)
+        .eq("merchant_username", merchant.username)
         .order("created_at", { ascending: false });
       if (data) setTransactions(data);
       setLoading(false);

@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { useState, useEffect } from "react";
+import { createSupabaseBrowser } from "@/lib/supabase-browser";
 
 const navItems = [
   {
@@ -62,7 +63,21 @@ const navItems = [
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
+  const [userEmail, setUserEmail] = useState<string | null>(null);
+
+  useEffect(() => {
+    const supabase = createSupabaseBrowser();
+    supabase.auth.getUser().then(({ data }) => setUserEmail(data.user?.email ?? null));
+  }, []);
+
+  async function handleLogout() {
+    const supabase = createSupabaseBrowser();
+    await supabase.auth.signOut();
+    router.push("/auth");
+    router.refresh();
+  }
 
   const activeItem = navItems.find((i) => i.href === pathname);
 
@@ -128,12 +143,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold flex-shrink-0"
                 style={{ background: "var(--accent)", color: "white" }}
               >
-                M
+                {userEmail ? userEmail[0].toUpperCase() : "M"}
               </div>
-              <div className="min-w-0">
-                <p className="text-xs font-medium truncate">Mon compte</p>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-medium truncate">{userEmail ?? "Mon compte"}</p>
                 <p className="text-[11px] truncate" style={{ color: "var(--muted)" }}>Marchand</p>
               </div>
+              <button onClick={handleLogout} title="Déconnexion" className="flex-shrink-0 p-1 rounded" style={{ color: "var(--muted)" }}>
+                <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+                  <path d="M5 2H2.5A1.5 1.5 0 0 0 1 3.5v6A1.5 1.5 0 0 0 2.5 11H5M9 9l3-3-3-3M12 6.5H5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </button>
             </div>
           </div>
         )}

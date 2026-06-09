@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { supabase, type MerchantSettings } from "@/lib/supabase";
+import { type MerchantSettings, type PaymentLinkRow } from "@/lib/supabase";
+import { createSupabaseBrowser } from "@/lib/supabase-browser";
 import type { PaymentPreview, PreviewConfig } from "@/app/dashboard/apercu/page";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -14,6 +15,15 @@ interface PaymentLink {
   amount?: number;
   type: "libre" | "fixe";
   apercuId?: string;
+}
+
+function rowToLink(row: PaymentLinkRow): PaymentLink {
+  return { id: row.id, label: row.label, slug: row.slug, type: row.type, amount: row.amount ?? undefined, apercuId: undefined };
+}
+
+function cfgFromRow(row: PaymentLinkRow): PreviewConfig | null {
+  if (!row.apercu_config) return null;
+  return row.apercu_config as unknown as PreviewConfig;
 }
 
 // ── Config par défaut ─────────────────────────────────────────────────────────
@@ -460,48 +470,81 @@ export default function LienPage() {
 
   useEffect(() => {
     async function load() {
-      const username = localStorage.getItem("cryptopay_username");
-      if (!username) return;
-      const { data } = await supabase.from("merchants").select("*").eq("username", username).single();
-      if (data) {
-        setMerchant(data);
-        const storedLinks = localStorage.getItem(`cryptopay_links_${username}`);
-        if (storedLinks) setLinks(JSON.parse(storedLinks));
-        const storedPreviews = localStorage.getItem(`cryptopay_apercus_${username}`);
-        if (storedPreviews) setPreviews(JSON.parse(storedPreviews));
-        const storedCfgs = localStorage.getItem(`cryptopay_link_cfgs_${username}`);
-        if (storedCfgs) setLinkCfgs(JSON.parse(storedCfgs));
+      const supabase = createSupabaseBrowser();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data: merchantData } = await supabase.from("merchants").select("*").eq("user_id", user.id).single();
+      if (!merchantData) return;
+      setMerchant(merchantData);
+
+      const { data: rows } = await supabase
+        .from("payment_links")
+        .select("*")
+        .eq("merchant_username", merchantData.username)
+        .order("created_at", { ascending: false });
+      if (rows) {
+        setLinks(rows.map(rowToLink));
+        const cfgs: Record<string, PreviewConfig> = {};
+        for (const row of rows) {
+          const c = cfgFromRow(row);
+          if (c) cfgs[row.id] = c;
+        }
+        setLinkCfgs(cfgs);
+      }
+
+      const { data: previewRows } = await supabase
+        .from("payment_previews")
+        .select("*")
+        .eq("merchant_username", merchantData.username)
+        .order("created_at", { ascending: false });
+      if (previewRows) {
+        setPreviews(previewRows.map((row) => ({
+          id: row.id,
+          name: row.name,
+          description: row.description,
+          config: row.config as unknown as PreviewConfig,
+          createdAt: row.created_at ?? new Date().toISOString(),
+        })));
       }
     }
     load();
   }, []);
 
-  function saveLinks(updated: PaymentLink[]) {
-    const username = localStorage.getItem("cryptopay_username");
-    setLinks(updated);
-    if (username) localStorage.setItem(`cryptopay_links_${username}`, JSON.stringify(updated));
-  }
+  async function handleSave(link: PaymentLink, cfg: PreviewConfig) {
+    const supabase = createSupabaseBrowser();
+    const username = merchant?.username;
+    if (!username) return;
 
-  function saveCfg(linkId: string, cfg: PreviewConfig) {
-    const username = localStorage.getItem("cryptopay_username");
-    const updated = { ...linkCfgs, [linkId]: cfg };
-    setLinkCfgs(updated);
-    if (username) localStorage.setItem(`cryptopay_link_cfgs_${username}`, JSON.stringify(updated));
-  }
+    const payload = {
+      merchant_username: username,
+      label: link.label,
+      slug: link.slug,
+      type: link.type,
+      amount: link.amount ?? null,
+      apercu_config: cfg as unknown as Record<string, unknown>,
+    };
 
-  function handleSave(link: PaymentLink, cfg: PreviewConfig) {
     if (editingId) {
-      saveLinks(links.map(l => l.id === link.id ? link : l));
+      await supabase.from("payment_links").update(payload).eq("id", link.id);
+      setLinks(links.map(l => l.id === link.id ? link : l));
+      setLinkCfgs(prev => ({ ...prev, [link.id]: cfg }));
     } else {
-      saveLinks([...links, link]);
+      const { data } = await supabase.from("payment_links").insert(payload).select().single();
+      if (data) {
+        const newLink = rowToLink(data);
+        setLinks(prev => [newLink, ...prev]);
+        setLinkCfgs(prev => ({ ...prev, [newLink.id]: cfg }));
+      }
     }
-    saveCfg(link.id, cfg);
     setView("list");
     setEditingId(null);
   }
 
-  function handleDelete(id: string) {
-    saveLinks(links.filter(l => l.id !== id));
+  async function handleDelete(id: string) {
+    const supabase = createSupabaseBrowser();
+    await supabase.from("payment_links").delete().eq("id", id);
+    setLinks(links.filter(l => l.id !== id));
   }
 
   function handleCopy(slug: string, id: string) {

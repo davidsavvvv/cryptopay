@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { supabase, type MerchantSettings } from "@/lib/supabase";
+import { type MerchantSettings } from "@/lib/supabase";
+import { createSupabaseBrowser } from "@/lib/supabase-browser";
 
 export default function ParametresPage() {
   const [settings, setSettings] = useState<MerchantSettings>({
@@ -15,13 +16,10 @@ export default function ParametresPage() {
 
   useEffect(() => {
     async function load() {
-      const username = localStorage.getItem("cryptopay_username");
-      if (!username) return;
-      const { data } = await supabase
-        .from("merchants")
-        .select("*")
-        .eq("username", username)
-        .single();
+      const supabase = createSupabaseBrowser();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data } = await supabase.from("merchants").select("*").eq("user_id", user.id).single();
       if (data) setSettings(data);
     }
     load();
@@ -31,36 +29,18 @@ export default function ParametresPage() {
     e.preventDefault();
     setSaving(true);
     setError(null);
+    const supabase = createSupabaseBrowser();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { setError("Non connecté"); setSaving(false); return; }
 
-    const { data: existing } = await supabase
+    const result = await supabase
       .from("merchants")
-      .select("id")
-      .eq("username", settings.username)
-      .single();
-
-    let result;
-    if (existing) {
-      result = await supabase
-        .from("merchants")
-        .update({
-          wallet_address: settings.wallet_address,
-          business_name: settings.business_name,
-        })
-        .eq("username", settings.username);
-    } else {
-      result = await supabase
-        .from("merchants")
-        .insert({
-          username: settings.username,
-          wallet_address: settings.wallet_address,
-          business_name: settings.business_name,
-        });
-    }
+      .update({ wallet_address: settings.wallet_address, business_name: settings.business_name })
+      .eq("user_id", user.id);
 
     if (result.error) {
       setError(result.error.message);
     } else {
-      localStorage.setItem("cryptopay_username", settings.username);
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
     }
@@ -145,23 +125,6 @@ export default function ParametresPage() {
         </form>
       </div>
 
-      {/* Danger zone */}
-      <div className="rounded-xl p-6" style={{ background: "var(--card)", border: "1px solid rgba(239,68,68,0.3)" }}>
-        <h2 className="font-semibold mb-1" style={{ color: "#ef4444" }}>Zone de danger</h2>
-        <p className="text-sm mb-4" style={{ color: "var(--muted)" }}>
-          Ces actions sont irréversibles.
-        </p>
-        <button
-          className="px-4 py-2 rounded-lg text-sm font-medium transition-all"
-          style={{ background: "rgba(239,68,68,0.1)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.3)" }}
-          onClick={() => {
-            localStorage.removeItem("cryptopay_username");
-            window.location.href = "/dashboard";
-          }}
-        >
-          Se déconnecter
-        </button>
-      </div>
     </div>
   );
 }

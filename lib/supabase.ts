@@ -23,3 +23,23 @@ export type Transaction = {
   tx_hash?: string
   created_at?: string
 }
+
+export type PaymentPreviewRow = {
+  id: string
+  merchant_username: string
+  name: string
+  description: string
+  config: Record<string, unknown>
+  created_at?: string
+}
+
+export type PaymentLinkRow = {
+  id: string
+  merchant_username: string
+  label: string
+  slug: string
+  type: 'libre' | 'fixe'
+  amount?: number | null
+  apercu_config?: Record<string, unknown> | null
+  created_at?: string
+}

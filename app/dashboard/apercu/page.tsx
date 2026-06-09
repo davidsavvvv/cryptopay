@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { createSupabaseBrowser } from "@/lib/supabase-browser";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -1036,31 +1037,63 @@ export default function ApercuPage() {
   const [view, setView] = useState<View>("list");
   const [editingId, setEditingId] = useState<string | null>(null);
 
+  const [merchantUsername, setMerchantUsername] = useState<string | null>(null);
+
   useEffect(() => {
-    const username = localStorage.getItem("cryptopay_username") ?? "demo";
-    const stored = localStorage.getItem(`cryptopay_apercus_${username}`);
-    if (stored) setPreviews(JSON.parse(stored));
+    async function load() {
+      const supabase = createSupabaseBrowser();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data: merchant } = await supabase.from("merchants").select("username").eq("user_id", user.id).single();
+      if (!merchant) return;
+      setMerchantUsername(merchant.username);
+      const { data } = await supabase
+        .from("payment_previews")
+        .select("*")
+        .eq("merchant_username", merchant.username)
+        .order("created_at", { ascending: false });
+      if (data) {
+        setPreviews(data.map((row) => ({
+          id: row.id,
+          name: row.name,
+          description: row.description,
+          config: row.config as unknown as PreviewConfig,
+          createdAt: row.created_at ?? new Date().toISOString(),
+        })));
+      }
+    }
+    load();
   }, []);
 
-  function persist(list: PaymentPreview[]) {
-    const username = localStorage.getItem("cryptopay_username") ?? "demo";
-    setPreviews(list);
-    localStorage.setItem(`cryptopay_apercus_${username}`, JSON.stringify(list));
-  }
-
-  function handleCreate(p: PaymentPreview) {
-    persist([...previews, p]);
+  async function handleCreate(p: PaymentPreview) {
+    if (!merchantUsername) return;
+    const supabase = createSupabaseBrowser();
+    const { data } = await supabase
+      .from("payment_previews")
+      .insert({ merchant_username: merchantUsername, name: p.name, description: p.description, config: p.config as unknown as Record<string, unknown> })
+      .select()
+      .single();
+    if (data) {
+      setPreviews((prev) => [{ ...p, id: data.id, createdAt: data.created_at ?? p.createdAt }, ...prev]);
+    }
     setView("list");
   }
 
-  function handleEdit(p: PaymentPreview) {
-    persist(previews.map((x) => (x.id === p.id ? p : x)));
+  async function handleEdit(p: PaymentPreview) {
+    const supabase = createSupabaseBrowser();
+    await supabase
+      .from("payment_previews")
+      .update({ name: p.name, description: p.description, config: p.config as unknown as Record<string, unknown> })
+      .eq("id", p.id);
+    setPreviews((prev) => prev.map((x) => (x.id === p.id ? p : x)));
     setView("list");
     setEditingId(null);
   }
 
-  function handleDelete(id: string) {
-    persist(previews.filter((x) => x.id !== id));
+  async function handleDelete(id: string) {
+    const supabase = createSupabaseBrowser();
+    await supabase.from("payment_previews").delete().eq("id", id);
+    setPreviews((prev) => prev.filter((x) => x.id !== id));
   }
 
   const editing = previews.find((p) => p.id === editingId);

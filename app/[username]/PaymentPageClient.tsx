@@ -15,15 +15,6 @@ interface MerchantSettings {
   business_name: string;
 }
 
-interface PaymentLink {
-  id: string;
-  label: string;
-  slug: string;
-  amount?: number;
-  type: "libre" | "fixe";
-  apercuId?: string;
-}
-
 interface PreviewConfig {
   bg: string;
   cardBg: string;
@@ -39,13 +30,6 @@ interface PreviewConfig {
   buttonLabel: string;
   showBadge: boolean;
   style: "flat" | "glass" | "gradient";
-}
-
-interface PaymentPreview {
-  id: string;
-  name: string;
-  description: string;
-  config: PreviewConfig;
 }
 
 const DEFAULT_CONFIG: PreviewConfig = {
@@ -251,55 +235,36 @@ export default function PaymentPageClient({ username }: { username: string }) {
 
   useEffect(() => {
     async function load() {
-      let merchantUsername: string | null = null;
-      let foundLink: PaymentLink | null = null;
-
       // 1. Username direct ?
       const { data: merchantDirect } = await supabase
         .from("merchants").select("*").eq("username", username).single();
 
       if (merchantDirect) {
         setMerchant(merchantDirect);
-        merchantUsername = merchantDirect.username;
-      } else {
-        // 2. Slug de lien — chercher dans localStorage
-        const allKeys = Object.keys(localStorage).filter((k) => k.startsWith("cryptopay_links_"));
-        for (const key of allKeys) {
-          const links: PaymentLink[] = JSON.parse(localStorage.getItem(key) || "[]");
-          const found = links.find((l) => l.slug === username);
-          if (found) {
-            foundLink = found;
-            merchantUsername = key.replace("cryptopay_links_", "");
-            const { data: m } = await supabase
-              .from("merchants").select("*").eq("username", merchantUsername).single();
-            if (m) {
-              setMerchant(m);
-              if (found.type === "fixe" && found.amount) {
-                setFixedAmount(found.amount);
-                setAmount(found.amount.toString());
-              }
-              setLinkLabel(found.label);
-            }
-            break;
-          }
-        }
+        return;
       }
 
-      // 3. Charger l'aperçu depuis localStorage
-      if (merchantUsername) {
-        const stored = localStorage.getItem(`cryptopay_apercus_${merchantUsername}`);
-        if (stored) {
-          const previews: PaymentPreview[] = JSON.parse(stored);
-          if (previews.length > 0) {
-            // Priorité : aperçu associé au lien, sinon le premier
-            let apercu: PaymentPreview | undefined;
-            if (foundLink?.apercuId) {
-              apercu = previews.find((p) => p.id === foundLink!.apercuId);
-            }
-            if (!apercu) apercu = previews[0];
-            setCfg(apercu.config);
-          }
-        }
+      // 2. Slug de lien — chercher dans Supabase
+      const { data: linkRow } = await supabase
+        .from("payment_links").select("*").eq("slug", username).single();
+
+      if (!linkRow) return;
+
+      const { data: m } = await supabase
+        .from("merchants").select("*").eq("username", linkRow.merchant_username).single();
+
+      if (!m) return;
+      setMerchant(m);
+      setLinkLabel(linkRow.label);
+
+      if (linkRow.type === "fixe" && linkRow.amount) {
+        setFixedAmount(linkRow.amount);
+        setAmount(String(linkRow.amount));
+      }
+
+      // 3. Aperçu stocké dans la ligne
+      if (linkRow.apercu_config) {
+        setCfg(linkRow.apercu_config as unknown as PreviewConfig);
       }
     }
     load();
